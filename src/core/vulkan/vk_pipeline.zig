@@ -23,8 +23,10 @@ pub const Pipeline = struct {
         shader_stages: vk_shader.ShaderStages,
         push_constants_range: ?[]c.VkPushConstantRange,
         descriptors_set_layout: ?[]c.VkDescriptorSetLayout,
-        attribute_descriptions: []c.VkVertexInputAttributeDescription,
+        attribute_descriptions: ?[]c.VkVertexInputAttributeDescription,
     ) !void {
+        std.log.info("Pipeline init", .{});
+
         var layout_info = c.VkPipelineLayoutCreateInfo{
             .sType = c.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         };
@@ -50,9 +52,12 @@ pub const Pipeline = struct {
             .sType = c.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
             .vertexBindingDescriptionCount = 1,
             .pVertexBindingDescriptions = &binding_description,
-            .vertexAttributeDescriptionCount = @intCast(attribute_descriptions.len),
-            .pVertexAttributeDescriptions = attribute_descriptions.ptr,
         };
+
+        if (attribute_descriptions) |desc| {
+            vertex_input.vertexAttributeDescriptionCount = @intCast(desc.len);
+            vertex_input.pVertexAttributeDescriptions = desc.ptr;
+        }
 
         var input_assembly = c.VkPipelineInputAssemblyStateCreateInfo{
             .sType = c.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
@@ -144,6 +149,8 @@ pub const Pipeline = struct {
     ) void {
         c.vkDestroyPipeline(device, self.handle, null);
         c.vkDestroyPipelineLayout(device, self.layout, null);
+
+        std.log.info("Pipeline deinit", .{});
     }
 
     pub fn bind(

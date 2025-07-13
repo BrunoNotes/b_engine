@@ -65,12 +65,14 @@ pub const VkRenderer = struct {
 
         try VK_CHECK(c.vmaCreateAllocator(&vkallocator_info, &self.vk_allocator));
 
+        // TODO: temp
         try self.triangle.init(allocator, self);
     }
 
     pub fn deinit(self: *@This()) void {
         VK_CHECK(c.vkDeviceWaitIdle(self.device.handle)) catch @panic("failed to wait device");
 
+        // TODO: temp
         self.triangle.deinit(self);
 
         c.vmaDestroyAllocator(self.vk_allocator);
@@ -181,6 +183,7 @@ pub const VkRenderer = struct {
 
         c.vkCmdBeginRendering(cmd, &rendering_info);
 
+        // TODO: temp
         try self.triangle.render(allocator, self);
     }
 

@@ -21,6 +21,7 @@ pub const TextureImage = struct {
         queue: c.VkQueue,
         cmd_pool: c.VkCommandPool,
     ) !void {
+        std.log.info("Texture image init: {s}", .{file_path});
         var img_width: i32 = undefined;
         var img_height: i32 = undefined;
         var img_channels: i32 = undefined;
@@ -73,6 +74,7 @@ pub const TextureImage = struct {
         c.vkDestroySampler(device, self.sampler, null);
         c.vmaDestroyImage(vk_allocator, self.image.handle, self.image.vk_allocation);
         c.vkDestroyImageView(device, self.image.view, null);
+        std.log.info("Texture image deinit", .{});
     }
 
     pub fn defaultTexture() !struct {

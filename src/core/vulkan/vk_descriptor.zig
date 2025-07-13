@@ -18,6 +18,8 @@ pub const Descriptor = struct {
         pool_size: []c.VkDescriptorPoolSize,
         layout_binding: []c.VkDescriptorSetLayoutBinding,
     ) !void {
+        std.log.info("Descriptor init", .{});
+
         var pool_info = c.VkDescriptorPoolCreateInfo{
             .sType = c.VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .flags = c.VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT | //  allows descriptor sets to be updated after they have been bound to a command buffer
@@ -58,5 +60,7 @@ pub const Descriptor = struct {
     ) void {
         c.vkDestroyDescriptorSetLayout(device, self.set_layout, null);
         c.vkDestroyDescriptorPool(device, self.pool, null);
+
+        std.log.info("Descriptor deinit", .{});
     }
 };

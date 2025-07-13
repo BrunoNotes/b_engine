@@ -32,6 +32,7 @@ pub const ShaderStages = struct {
         device: c.VkDevice,
         shader_stage_type: []ShaderStageType,
     ) !void {
+        std.log.info("ShaderStages init", .{});
         self.modules = std.ArrayList(c.VkShaderModule).init(allocator);
         self.stage_infos = std.ArrayList(c.VkPipelineShaderStageCreateInfo).init(allocator);
         self.module_infos = std.ArrayList(c.VkShaderModuleCreateInfo).init(allocator);
@@ -78,9 +79,11 @@ pub const ShaderStages = struct {
         self.modules.deinit();
         self.stage_infos.deinit();
         self.module_infos.deinit();
+        std.log.info("ShaderStages deinit", .{});
     }
 };
 
+// TODO: temp
 pub const CameraUniform = struct {
     projection: math.Mat4 = undefined, // 64 bytes
     view: math.Mat4 = undefined,
@@ -88,6 +91,7 @@ pub const CameraUniform = struct {
     reserved_1: math.Mat4 = undefined,
 };
 
+// TODO: temp
 pub const TextureUniform = struct {
     diffuse_color: math.Vec4 = undefined,
     reserved_0: math.Vec4 = undefined,
@@ -95,10 +99,12 @@ pub const TextureUniform = struct {
     reserved_2: math.Vec4 = undefined,
 };
 
+// TODO: temp
 pub const PushConstant = struct {
     model_matrix: math.Mat4 = undefined,
 };
 
+// TODO: temp
 pub const VkTriangle = struct {
     pipeline: vk_pipeline.Pipeline = undefined,
     shader_stages: ShaderStages = undefined,
@@ -123,6 +129,8 @@ pub const VkTriangle = struct {
         allocator: std.mem.Allocator,
         context: *vk_renderer.VkRenderer,
     ) !void {
+        std.log.info("VkTriangle init", .{});
+
         const shader_folder = "assets/shaders/bin";
 
         var shader_stage_type = [_]ShaderStageType{
@@ -342,6 +350,8 @@ pub const VkTriangle = struct {
         self.shader_stages.deinit(context.device.handle);
         self.fragment_descriptor.deinit(context.device.handle);
         self.vertex_descriptor.deinit(context.device.handle);
+
+        std.log.info("VkTriangle deinit", .{});
     }
 
     pub fn render(
@@ -355,7 +365,6 @@ pub const VkTriangle = struct {
 
         // dymanic state updates ----------------------
         self.pipeline.setDynamicUpdates(cmd, context.window_extent);
-
         self.pipeline.bind(cmd, c.VK_PIPELINE_BIND_POINT_GRAPHICS);
 
         try self.vertex_buffer.loadBufferData(
