@@ -1,7 +1,7 @@
 .{
-    .name = .ink_engine,
+    .name = .b_engine,
     .version = "0.0.0",
-    .fingerprint = 0x5baf83676c942328,
+    .fingerprint = 0x7b1b5adf4cd62b52,
     .minimum_zig_version = "0.14.1",
     .dependencies = .{},
     .paths = .{
