@@ -19,6 +19,7 @@ pub const Image = struct {
     handle: c.VkImage = undefined,
     view: c.VkImageView = undefined,
     extent: c.VkExtent2D = undefined,
+    vk_allocation: c.VmaAllocation = undefined,
 };
 
 pub const RGBAColor = struct {
@@ -34,23 +35,6 @@ pub const Vertex = struct {
     // color: RGBAColor = undefined,
 };
 
-pub const CameraUniform = struct {
-    projection: math.Mat4 = undefined, // 64 bytes
-    view: math.Mat4 = undefined,
-    reserved_0: math.Mat4 = undefined,
-    reserved_1: math.Mat4 = undefined,
-};
-
-pub const TextureUniform = struct {
-    diffuse_color: math.Vec4 = undefined,
-    reserved_0: math.Vec4 = undefined,
-    reserved_1: math.Vec4 = undefined,
-    reserved_2: math.Vec4 = undefined,
-};
-
-pub const PushConstant = struct {
-    model_matrix: math.Mat4 = undefined,
-};
 pub fn VK_CHECK(x: c.VkResult) !void {
     if (x != c.VK_SUCCESS) {
         std.log.err("Detected vulkan error: {s}", .{c.string_VkResult(x)});

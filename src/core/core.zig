@@ -3,6 +3,8 @@ pub const c = @import("c.zig");
 
 pub const Window = @import("window.zig").Window;
 pub const vulkan = @import("vulkan/vk_renderer.zig");
+pub const math = @import("math.zig");
+pub const util = @import("util.zig");
 
 pub const Engine = struct {
     window: Window = undefined,

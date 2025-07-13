@@ -1,13 +1,19 @@
 const std = @import("std");
-const c = @import("../c.zig");
 
-const Window = @import("../window.zig").Window;
 pub const vk_instance = @import("vk_instance.zig");
 pub const vk_device = @import("vk_device.zig");
 pub const vk_swapchain = @import("vk_swapchain.zig");
 pub const vk_types = @import("vk_types.zig");
-const VK_CHECK = vk_types.VK_CHECK;
 pub const vk_utils = @import("vk_utils.zig");
+pub const vk_shader = @import("vk_shader.zig");
+pub const vk_pipeline = @import("vk_pipeline.zig");
+pub const vk_descriptor = @import("vk_descriptor.zig");
+pub const vk_buffer = @import("vk_buffer.zig");
+pub const vk_img = @import("vk_image.zig");
+
+const c = @import("../c.zig");
+const Window = @import("../window.zig").Window;
+const VK_CHECK = vk_types.VK_CHECK;
 
 pub const VkRenderer = struct {
     instance: vk_instance.Instance = undefined,
@@ -17,6 +23,9 @@ pub const VkRenderer = struct {
     device: vk_device.LogicDevice = undefined,
     swapchain: vk_swapchain.SwapChain = undefined,
     vk_allocator: c.VmaAllocator = undefined,
+
+    // temp
+    triangle: vk_shader.VkTriangle = undefined,
 
     pub fn init(
         self: *@This(),
@@ -55,13 +64,17 @@ pub const VkRenderer = struct {
         };
 
         try VK_CHECK(c.vmaCreateAllocator(&vkallocator_info, &self.vk_allocator));
+
+        try self.triangle.init(allocator, self);
     }
 
     pub fn deinit(self: *@This()) void {
         VK_CHECK(c.vkDeviceWaitIdle(self.device.handle)) catch @panic("failed to wait device");
 
+        self.triangle.deinit(self);
+
         c.vmaDestroyAllocator(self.vk_allocator);
-        std.log.info("VmaAllocator deastroy", .{});
+        std.log.info("VmaAllocator destroy", .{});
 
         self.swapchain.deinit(
             self.device.handle,
@@ -167,6 +180,8 @@ pub const VkRenderer = struct {
         };
 
         c.vkCmdBeginRendering(cmd, &rendering_info);
+
+        try self.triangle.render(allocator, self);
     }
 
     pub fn endDraw(
