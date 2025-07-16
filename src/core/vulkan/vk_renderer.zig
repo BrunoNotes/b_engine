@@ -10,6 +10,7 @@ pub const vk_pipeline = @import("vk_pipeline.zig");
 pub const vk_descriptor = @import("vk_descriptor.zig");
 pub const vk_buffer = @import("vk_buffer.zig");
 pub const vk_img = @import("vk_image.zig");
+pub const vk_triangle = @import("vk_triangle.zig");
 
 const c = @import("../c.zig");
 const Window = @import("../window.zig").Window;
@@ -25,7 +26,7 @@ pub const VkRenderer = struct {
     vk_allocator: c.VmaAllocator = undefined,
 
     // temp
-    triangle: vk_shader.VkTriangle = undefined,
+    triangle: vk_triangle.VkTriangle = undefined,
 
     pub fn init(
         self: *@This(),
