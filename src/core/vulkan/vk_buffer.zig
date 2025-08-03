@@ -71,14 +71,15 @@ pub fn Buffer(comptime T: type) type {
             self: *@This(),
             vk_allocator: c.VmaAllocator,
             device: c.VkDevice,
+            size: u64,
         ) !void {
             try self.init(
                 vk_allocator,
                 device,
-                // same thins as: @sizeOf(@TypeOf(vk_builder.Buffer)) * vertices.len
-                @sizeOf(T),
+                size,
                 c.VK_BUFFER_USAGE_2_TRANSFER_SRC_BIT_KHR,
                 c.VMA_MEMORY_USAGE_CPU_TO_GPU,
+                // c.VMA_MEMORY_USAGE_CPU_ONLY,
                 c.VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
             );
         }
@@ -95,21 +96,19 @@ pub fn Buffer(comptime T: type) type {
                 self.allocation,
                 &data,
             ));
+            const aligned_data: [*]T = @ptrCast(@alignCast(data));
 
             if (@TypeOf(items) != []T) {
-                var items_slice = [_]T{
-                    items,
-                };
-
-                @memcpy(
-                    @as([*]T, @ptrCast(@alignCast(data)))[0..items_slice.len],
-                    @as([]T, &items_slice),
-                );
+                if (@typeInfo(@TypeOf(items)) == .array) {
+                    // arrays can be cast to slice
+                    @memcpy(aligned_data, &items);
+                } else {
+                    // create a slice
+                    @memcpy(aligned_data, &[_]T{items});
+                }
             } else {
-                @memcpy(
-                    @as([*]T, @ptrCast(@alignCast(data)))[0..items.len],
-                    @as([]T, items),
-                );
+                // if it is already a slice
+                @memcpy(aligned_data, items);
             }
 
             c.vmaUnmapMemory(VkAllocator, self.allocation);
@@ -144,6 +143,7 @@ pub fn Buffer(comptime T: type) type {
             vk_allocator: c.VmaAllocator,
             device: c.VkDevice,
             items: anytype,
+            size: u64,
             queue: c.VkQueue,
             cmd_pool: c.VkCommandPool,
         ) !void {
@@ -151,6 +151,7 @@ pub fn Buffer(comptime T: type) type {
             try staging_buffer.initStaging(
                 vk_allocator,
                 device,
+                size,
             );
             defer staging_buffer.deinit(vk_allocator);
 
@@ -166,7 +167,7 @@ pub fn Buffer(comptime T: type) type {
                 self.handle,
                 0,
                 0,
-                @sizeOf(T),
+                size,
             );
         }
     };

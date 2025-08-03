@@ -159,7 +159,7 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(exe);
 
-    const compile_shaders = b.option(bool, "sComp", "Compile shaders") orelse false;
+    const compile_shaders = b.option(bool, "cShader", "Compile shaders") orelse false;
     if (compile_shaders) {
         compileShaders(b, &exe.step);
     }
@@ -171,17 +171,9 @@ pub fn build(b: *std.Build) void {
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
+    // run_cmd.setEnvironmentVariable("SDL_VIDEODRIVER", "wayland");
 
     const run_step = b.step("run", "Run the app");
 
     run_step.dependOn(&run_cmd.step);
-
-    const exe_unit_tests = b.addTest(.{
-        .root_module = exe_mod,
-    });
-
-    const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
-
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_exe_unit_tests.step);
 }

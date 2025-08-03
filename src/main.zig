@@ -20,6 +20,11 @@ pub fn main() !void {
     var angle: f32 = 0.0;
     var camera_view = core.math.Vec3.init(0.0, 0.0, -2.0);
 
+    // TODO: temp
+    var triangle: core.vulkan.vk_triangle.VkTriangle = undefined;
+    try triangle.init(allocator, &eng.vk_renderer);
+    defer triangle.deinit(&eng.vk_renderer);
+
     while (eng.running) {
         // TODO: create an event system
         var event: core.c.SDL_Event = undefined;
@@ -65,24 +70,28 @@ pub fn main() !void {
             angle -= view_value;
         }
 
-        const rotation = core.math.Quat.fromAxisAngle(core.math.Vec3.FORWARD, angle);
+        try eng.vk_renderer.beginDraw(allocator);
+
+        // --------- triangle ---------
+        const rotation = core.math.Quat.fromAxisAngle(core.math.Vec3.UP, angle);
         const model_matrix = core.math.Quat.toRotationMatrix(
             rotation,
             core.math.Vec3.ZERO,
         );
 
         // rotate the object with a push constant
-        eng.vk_renderer.triangle.push_constant.model_matrix = model_matrix;
+        triangle.push_constant.model_matrix = model_matrix;
 
-        eng.vk_renderer.triangle.camera_uniforms.view = core.math.Mat4.translation(camera_view);
-        eng.vk_renderer.triangle.camera_uniforms.projection = core.math.Mat4.perspective(
+        triangle.camera_uniforms.view = core.math.Mat4.translation(camera_view);
+        triangle.camera_uniforms.projection = core.math.Mat4.perspective(
             std.math.degreesToRadians(45),
             @as(f32, @floatFromInt(eng.vk_renderer.window_extent.width)) / @as(f32, @floatFromInt(eng.vk_renderer.window_extent.height)),
             0.1,
             1000.0,
         );
 
-        try eng.vk_renderer.beginDraw(allocator);
+        try triangle.render(allocator, &eng.vk_renderer);
+        // --------- triangle ---------
 
         try eng.vk_renderer.endDraw(allocator);
     }

@@ -18,16 +18,16 @@ const math = @import("../math.zig");
 pub const CameraUniform = struct {
     projection: math.Mat4 = undefined, // 64 bytes
     view: math.Mat4 = undefined,
-    reserved_0: math.Mat4 = undefined,
-    reserved_1: math.Mat4 = undefined,
+    // reserved_0: math.Mat4 = undefined,
+    // reserved_1: math.Mat4 = undefined,
 };
 
 // TODO: temp
 pub const TextureUniform = struct {
     diffuse_color: math.Vec4 = undefined,
-    reserved_0: math.Vec4 = undefined,
-    reserved_1: math.Vec4 = undefined,
-    reserved_2: math.Vec4 = undefined,
+    // reserved_0: math.Vec4 = undefined,
+    // reserved_1: math.Vec4 = undefined,
+    // reserved_2: math.Vec4 = undefined,
 };
 
 // TODO: temp
@@ -40,15 +40,15 @@ pub const VkTriangle = struct {
     pipeline: vk_pipeline.Pipeline = undefined,
     shader_stages: vk_shader.ShaderStages = undefined,
     vertex_descriptor: vk_descriptor.Descriptor = undefined,
-    vertices: [4]vk_types.Vertex = undefined,
-    vertex_buffer: vk_buffer.Buffer([4]vk_types.Vertex) = undefined,
-    indices: [6]u32 = undefined,
-    index_buffer: vk_buffer.Buffer([6]u32) = undefined,
+    vertices: []vk_types.Vertex = undefined,
+    vertex_buffer: vk_buffer.Buffer(vk_types.Vertex) = undefined,
+    indices: []u32 = undefined,
+    index_buffer: vk_buffer.Buffer(u32) = undefined,
 
-    texture_images: [1]vk_img.TextureImage = undefined,
-    fragment_descriptor: vk_descriptor.Descriptor = undefined,
-    fragment_uniform: TextureUniform = undefined,
-    fragment_uniform_buffer: vk_buffer.Buffer(TextureUniform) = undefined,
+    texture_images: []vk_img.TextureImage = undefined,
+    texture_descriptor: vk_descriptor.Descriptor = undefined,
+    texture_uniform: TextureUniform = undefined,
+    texture_uniform_buffer: vk_buffer.Buffer(TextureUniform) = undefined,
 
     push_constant: PushConstant = undefined,
 
@@ -107,13 +107,18 @@ pub const VkTriangle = struct {
         );
 
         // TODO: create a structure to load texture
-        try self.texture_images[0].init(
+        var texture = vk_img.TextureImage{};
+        // defer texture.deinit(context.vk_allocator, context.device.handle);
+        try texture.init(
             "assets/textures" ++ "/texture_01.png",
             context.vk_allocator,
             context.device.handle,
             context.device.graphics_queue.queue,
             context.swapchain.getCurrentFrame().cmd_pool,
         );
+
+        const textures = [_]vk_img.TextureImage{texture};
+        self.texture_images = try allocator.dupe(vk_img.TextureImage, textures[0..]);
 
         var fragment_descriptor_pool_size = [_]c.VkDescriptorPoolSize{
             c.VkDescriptorPoolSize{
@@ -151,7 +156,7 @@ pub const VkTriangle = struct {
             self.texture_images[i].descriptor_binding = layout_binding.binding;
         }
 
-        try self.fragment_descriptor.init(
+        try self.texture_descriptor.init(
             context.device.handle,
             @intCast(self.texture_images.len),
             &fragment_descriptor_pool_size,
@@ -160,7 +165,7 @@ pub const VkTriangle = struct {
 
         var descritor_set_layout = [_]c.VkDescriptorSetLayout{
             self.vertex_descriptor.set_layout,
-            self.fragment_descriptor.set_layout,
+            self.texture_descriptor.set_layout,
         };
 
         var push_constant_range = [_]c.VkPushConstantRange{
@@ -196,43 +201,48 @@ pub const VkTriangle = struct {
             &attribute_descriptions,
         );
 
-        self.vertices[0].position = .{ .x = -0.5, .y = -0.5, .z = 0.0 };
-        self.vertices[0].texture_coord = .{ .x = 0.0, .y = 0.0 };
-        self.vertices[1].position = .{ .x = 0.5, .y = 0.5, .z = 0.0 };
-        self.vertices[1].texture_coord = .{ .x = 1.0, .y = 1.0 };
-        self.vertices[2].position = .{ .x = -0.5, .y = 0.5, .z = 0.0 };
-        self.vertices[2].texture_coord = .{ .x = 0.0, .y = 1.0 };
-        self.vertices[3].position = .{ .x = 0.5, .y = -0.5, .z = 0.0 };
-        self.vertices[3].texture_coord = .{ .x = 1.0, .y = 0.0 };
+        var vertices: [4]vk_types.Vertex = undefined;
+        vertices[0].position = .{ .x = -0.5, .y = -0.5, .z = 0.0 };
+        vertices[0].texture_coord = .{ .x = 0.0, .y = 0.0 };
+        vertices[1].position = .{ .x = 0.5, .y = 0.5, .z = 0.0 };
+        vertices[1].texture_coord = .{ .x = 1.0, .y = 1.0 };
+        vertices[2].position = .{ .x = -0.5, .y = 0.5, .z = 0.0 };
+        vertices[2].texture_coord = .{ .x = 0.0, .y = 1.0 };
+        vertices[3].position = .{ .x = 0.5, .y = -0.5, .z = 0.0 };
+        vertices[3].texture_coord = .{ .x = 1.0, .y = 0.0 };
+        // self.vertices = &vertices;
+        // for slices the caller must own the memory
+        self.vertices = try allocator.dupe(vk_types.Vertex, vertices[0..]);
 
         try self.vertex_buffer.init(
             context.vk_allocator,
             context.device.handle,
-            @sizeOf(@TypeOf(self.vertices)),
+            @sizeOf(vk_types.Vertex) * self.vertices.len,
             c.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | c.VK_BUFFER_USAGE_TRANSFER_DST_BIT | c.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             c.VMA_MEMORY_USAGE_GPU_ONLY,
             null,
         );
 
-        self.indices = [_]u32{ 0, 1, 2, 0, 3, 1 };
+        const indices = [_]u32{ 0, 1, 2, 0, 3, 1 };
+        self.indices = try allocator.dupe(u32, indices[0..]);
 
         try self.index_buffer.init(
             context.vk_allocator,
             context.device.handle,
-            @sizeOf(@TypeOf(self.indices)),
+            @sizeOf(u32) * self.indices.len,
             c.VK_BUFFER_USAGE_INDEX_BUFFER_BIT | c.VK_BUFFER_USAGE_TRANSFER_DST_BIT | c.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             c.VMA_MEMORY_USAGE_GPU_ONLY,
             null,
         );
 
-        self.fragment_uniform = TextureUniform{
+        self.texture_uniform = TextureUniform{
             .diffuse_color = math.Vec4.init(1.0, 1.0, 1.0, 1.0),
         };
 
-        try self.fragment_uniform_buffer.init(
+        try self.texture_uniform_buffer.init(
             context.vk_allocator,
             context.device.handle,
-            @sizeOf(@TypeOf(self.fragment_uniform)),
+            @sizeOf(TextureUniform),
             c.VK_BUFFER_USAGE_TRANSFER_DST_BIT | c.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             c.VMA_MEMORY_USAGE_AUTO,
             null,
@@ -255,7 +265,7 @@ pub const VkTriangle = struct {
         try self.camera_uniform_buffer.init(
             context.vk_allocator,
             context.device.handle,
-            @sizeOf(@TypeOf(self.camera_uniforms)),
+            @sizeOf(CameraUniform),
             c.VK_BUFFER_USAGE_TRANSFER_DST_BIT | c.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             c.VMA_MEMORY_USAGE_AUTO,
             null,
@@ -273,13 +283,13 @@ pub const VkTriangle = struct {
             );
         }
         self.camera_uniform_buffer.deinit(context.vk_allocator);
-        self.fragment_uniform_buffer.deinit(context.vk_allocator);
+        self.texture_uniform_buffer.deinit(context.vk_allocator);
         self.index_buffer.deinit(context.vk_allocator);
         self.vertex_buffer.deinit(context.vk_allocator);
 
         self.pipeline.deinit(context.device.handle);
         self.shader_stages.deinit(context.device.handle);
-        self.fragment_descriptor.deinit(context.device.handle);
+        self.texture_descriptor.deinit(context.device.handle);
         self.vertex_descriptor.deinit(context.device.handle);
 
         std.log.info("VkTriangle deinit", .{});
@@ -301,7 +311,8 @@ pub const VkTriangle = struct {
         try self.vertex_buffer.loadBufferData(
             context.vk_allocator,
             context.device.handle,
-            self.vertices,
+            self.vertices.ptr[0..self.vertices.len],
+            @sizeOf(vk_types.Vertex) * self.vertices.len,
             queue,
             cmd_pool,
         );
@@ -310,14 +321,16 @@ pub const VkTriangle = struct {
             context.vk_allocator,
             context.device.handle,
             self.indices,
+            @sizeOf(u32) * self.indices.len,
             queue,
             cmd_pool,
         );
 
-        try self.fragment_uniform_buffer.loadBufferData(
+        try self.texture_uniform_buffer.loadBufferData(
             context.vk_allocator,
             context.device.handle,
-            self.fragment_uniform,
+            self.texture_uniform,
+            @sizeOf(TextureUniform),
             queue,
             cmd_pool,
         );
@@ -326,6 +339,7 @@ pub const VkTriangle = struct {
             context.vk_allocator,
             context.device.handle,
             self.camera_uniforms,
+            @sizeOf(CameraUniform),
             queue,
             cmd_pool,
         );
@@ -350,13 +364,13 @@ pub const VkTriangle = struct {
         });
 
         var fragment_buffer_info = c.VkDescriptorBufferInfo{
-            .buffer = self.fragment_uniform_buffer.handle,
+            .buffer = self.texture_uniform_buffer.handle,
             .offset = 0,
-            .range = @sizeOf(@TypeOf(self.fragment_uniform)),
+            .range = @sizeOf(@TypeOf(self.texture_uniform)),
         };
         try descritor_write.append(c.VkWriteDescriptorSet{
             .sType = c.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = self.fragment_descriptor.set,
+            .dstSet = self.texture_descriptor.set,
             .dstBinding = 0,
             .dstArrayElement = 0,
             .descriptorType = c.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -373,7 +387,7 @@ pub const VkTriangle = struct {
 
             try descritor_write.append(c.VkWriteDescriptorSet{
                 .sType = c.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = self.fragment_descriptor.set,
+                .dstSet = self.texture_descriptor.set,
                 .dstBinding = tex.descriptor_binding,
                 .descriptorType = c.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .descriptorCount = 1,
@@ -383,7 +397,7 @@ pub const VkTriangle = struct {
 
         var descriptors_sets = [_]c.VkDescriptorSet{
             self.vertex_descriptor.set,
-            self.fragment_descriptor.set,
+            self.texture_descriptor.set,
         };
 
         c.vkUpdateDescriptorSets(

@@ -23,7 +23,7 @@ pub const Window = struct {
         _ = c.SDL_SetBooleanProperty(props, c.SDL_PROP_WINDOW_CREATE_VULKAN_BOOLEAN, true);
 
         // if (builtin.os.tag == .linux) {
-        //     _ = c.SDL_SetBooleanProperty(props, c.SDL_PROP_WINDOW_CREATE_WAYLAND_SURFACE_ROLE_CUSTOM_BOOLEAN, true);
+        //     _ = c.SDL_SetBooleanProperty(props, c.SDL_PROP_WINDOW_CREATE_WAYLAND_SURFACE_ROLE_CUSTOM_BOOLEAN, false);
         // }
 
         self.handle = c.SDL_CreateWindowWithProperties(props) orelse {

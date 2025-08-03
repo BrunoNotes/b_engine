@@ -9,7 +9,7 @@ layout(location = 0) out vec4 out_color;
 
 layout(set = 1, binding = 0) uniform local_uniform_object {
     vec4 diffuse_color;
-} object_ubo;
+} uniform_obj;
 
 layout(set = 1, binding = 1) uniform sampler2D diffuse_sampler;
 
@@ -22,5 +22,5 @@ void main()
 {
     // out_color = vec4(in_color, 1.0);
     // out_color = push_constants.color;
-    out_color = object_ubo.diffuse_color * texture(diffuse_sampler, in_dto.texture_coord);
+    out_color = uniform_obj.diffuse_color * texture(diffuse_sampler, in_dto.texture_coord);
 }

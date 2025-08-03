@@ -25,9 +25,6 @@ pub const VkRenderer = struct {
     swapchain: vk_swapchain.SwapChain = undefined,
     vk_allocator: c.VmaAllocator = undefined,
 
-    // temp
-    triangle: vk_triangle.VkTriangle = undefined,
-
     pub fn init(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -65,16 +62,10 @@ pub const VkRenderer = struct {
         };
 
         try VK_CHECK(c.vmaCreateAllocator(&vkallocator_info, &self.vk_allocator));
-
-        // TODO: temp
-        try self.triangle.init(allocator, self);
     }
 
     pub fn deinit(self: *@This()) void {
         VK_CHECK(c.vkDeviceWaitIdle(self.device.handle)) catch @panic("failed to wait device");
-
-        // TODO: temp
-        self.triangle.deinit(self);
 
         c.vmaDestroyAllocator(self.vk_allocator);
         std.log.info("VmaAllocator destroy", .{});
@@ -183,9 +174,6 @@ pub const VkRenderer = struct {
         };
 
         c.vkCmdBeginRendering(cmd, &rendering_info);
-
-        // TODO: temp
-        try self.triangle.render(allocator, self);
     }
 
     pub fn endDraw(
