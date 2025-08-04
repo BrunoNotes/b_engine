@@ -18,8 +18,66 @@ const math = @import("../math.zig");
 pub const CameraUniform = struct {
     projection: math.Mat4 = undefined, // 64 bytes
     view: math.Mat4 = undefined,
-    // reserved_0: math.Mat4 = undefined,
+    model_matrix: math.Mat4 = undefined,
     // reserved_1: math.Mat4 = undefined,
+};
+
+pub const Camera = struct {
+    velocity: math.Vec3 = math.Vec3.ZERO,
+    position: math.Vec3 = math.Vec3.ZERO,
+    pitch: f32 = 0, // vertical rotation
+    yaw: f32 = 0, // horizontal rotation
+
+    pub fn update(self: *@This()) void {
+        const r = self.getRotationMatrix();
+        const p = math.Vec4.init(
+            self.position.x,
+            self.position.y,
+            self.position.z,
+            0,
+        );
+
+        const result = math.Vec4.init(
+            (r.data[0] * p.x) + (r.data[1] * p.y) + (r.data[2] * p.z) + (r.data[3] * p.w),
+            (r.data[4] * p.x) + (r.data[5] * p.y) + (r.data[6] * p.z) + (r.data[7] * p.w),
+            (r.data[8] * p.x) + (r.data[9] * p.y) + (r.data[10] * p.z) + (r.data[11] * p.w),
+            (r.data[12] * p.x) + (r.data[13] * p.y) + (r.data[14] * p.z) + (r.data[15] * p.w),
+        );
+        _ = result;
+
+        // self.position = math.Vec3.add(self.position, math.Vec3.init(result.x, result.y, result.z));
+
+        // std.debug.print("{any}\n", .{self.position});
+    }
+
+    pub fn getRotationMatrix(self: *@This()) math.Mat4 {
+        // TODO: use quaternions
+        // const pitch = math.Quat.toRotationMatrix(
+        //     math.Quat.fromAxisAngle(math.Vec3.RIGHT, self.pitch),
+        //     math.Vec3.ZERO,
+        // );
+        // const yaw = math.Quat.toRotationMatrix(
+        //     math.Quat.fromAxisAngle(math.Vec3.UP, self.yaw),
+        //     math.Vec3.ZERO,
+        // );
+        // return math.Mat4.mult(pitch, yaw);
+
+        // prevents gimble lock
+        const limit = std.math.degreesToRadians(89);
+        self.pitch = std.math.clamp(self.pitch, -limit, limit);
+
+        return math.Mat4.eulerXYZ(self.pitch, self.yaw, 0);
+    }
+
+    pub fn getViewMatrix(self: *@This()) math.Mat4 {
+        // _ = self;
+        const rotation = self.getRotationMatrix();
+        const translation = math.Mat4.translation(self.position);
+        // std.debug.print("{any}\n", .{rotation});
+
+        return math.Mat4.inverse(math.Mat4.mult(translation, rotation));
+        // return math.Mat4.inverse(translation);
+    }
 };
 
 // TODO: temp
@@ -52,6 +110,7 @@ pub const VkTriangle = struct {
 
     push_constant: PushConstant = undefined,
 
+    camera: Camera,
     camera_uniforms: CameraUniform = undefined,
     camera_uniform_buffer: vk_buffer.Buffer(CameraUniform) = undefined,
 
@@ -168,13 +227,13 @@ pub const VkTriangle = struct {
             self.texture_descriptor.set_layout,
         };
 
-        var push_constant_range = [_]c.VkPushConstantRange{
-            c.VkPushConstantRange{
-                .stageFlags = c.VK_SHADER_STAGE_VERTEX_BIT,
-                .offset = @sizeOf(math.Mat4) * 0,
-                .size = @sizeOf(math.Mat4) * 2,
-            },
-        };
+        // var push_constant_range = [_]c.VkPushConstantRange{
+        //     c.VkPushConstantRange{
+        //         .stageFlags = c.VK_SHADER_STAGE_VERTEX_BIT,
+        //         .offset = @sizeOf(math.Mat4) * 0,
+        //         .size = @sizeOf(math.Mat4) * 2,
+        //     },
+        // };
 
         var attribute_descriptions = [_]c.VkVertexInputAttributeDescription{
             c.VkVertexInputAttributeDescription{
@@ -196,7 +255,8 @@ pub const VkTriangle = struct {
             context.swapchain.image_format,
             false, // TODO: make this configurable
             self.shader_stages,
-            &push_constant_range,
+            // &push_constant_range,
+            null,
             &descritor_set_layout,
             &attribute_descriptions,
         );
@@ -248,18 +308,22 @@ pub const VkTriangle = struct {
             null,
         );
 
-        self.push_constant = PushConstant{
-            .model_matrix = math.Mat4.translation(math.Vec3.ZERO),
-        };
+        // self.push_constant = PushConstant{
+        //     .model_matrix = math.Mat4.translation(math.Vec3.ZERO),
+        // };
+
+        self.camera.position = math.Vec3.init(0, 0, 2);
 
         self.camera_uniforms = CameraUniform{
             .projection = math.Mat4.perspective(
-                std.math.degreesToRadians(45),
+                std.math.degreesToRadians(70),
                 @as(f32, @floatFromInt(context.window_extent.width)) / @as(f32, @floatFromInt(context.window_extent.height)),
                 0.1,
                 1000.0,
             ),
-            .view = math.Mat4.translation(math.Vec3.init(0.0, 0.0, -2.0)),
+            // .view = math.Mat4.translation(math.Vec3.init(0.0, 0.0, -2.0)),
+            .view = self.camera.getViewMatrix(),
+            .model_matrix = math.Mat4.translation(math.Vec3.ZERO),
         };
 
         try self.camera_uniform_buffer.init(
@@ -424,14 +488,14 @@ pub const VkTriangle = struct {
 
         c.vkCmdBindIndexBuffer(cmd, self.index_buffer.handle, offset, c.VK_INDEX_TYPE_UINT32);
 
-        c.vkCmdPushConstants(
-            cmd,
-            self.pipeline.layout,
-            c.VK_SHADER_STAGE_VERTEX_BIT,
-            0,
-            @sizeOf(PushConstant),
-            &self.push_constant,
-        );
+        // c.vkCmdPushConstants(
+        //     cmd,
+        //     self.pipeline.layout,
+        //     c.VK_SHADER_STAGE_VERTEX_BIT,
+        //     0,
+        //     @sizeOf(PushConstant),
+        //     &self.push_constant,
+        // );
 
         c.vkCmdDrawIndexed(cmd, @intCast(self.indices.len), 1, 0, 0, 0);
     }

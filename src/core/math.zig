@@ -73,8 +73,8 @@ pub const Vec3 = struct {
     pub const DOWN = init(0.0, -1.0, 0.0);
     pub const LEFT = init(-1.0, 0.0, 0.0);
     pub const RIGHT = init(1.0, 0.0, 0.0);
-    pub const FORWARD = init(0.0, 0.0, -1.0);
-    pub const BACK = init(0.0, 0.0, 1.0);
+    pub const FORWARD = init(0.0, 0.0, 1.0);
+    pub const BACK = init(0.0, 0.0, -1.0);
 
     pub fn init(x: f32, y: f32, z: f32) Vec3 {
         return .{ .x = x, .y = y, .z = z };
@@ -147,7 +147,7 @@ pub const Vec3 = struct {
     }
 
     pub fn normalize(self: *@This()) void {
-        const vec_length = Vec3.length(self);
+        const vec_length = Vec3.length(self.*);
         self.x /= vec_length;
         self.y /= vec_length;
         self.z /= vec_length;
@@ -313,8 +313,10 @@ pub const Mat4 = struct {
         up_vec: Vec3,
     ) Mat4 {
         var result = Mat4.ZERO;
-        const z_axis = Vec3.sub(target, position).normalize();
-        const x_axis = Vec3.cross(z_axis, up_vec).normalize();
+        var z_axis = Vec3.sub(target, position);
+        z_axis.normalize();
+        var x_axis = Vec3.cross(z_axis, up_vec);
+        x_axis.normalize();
         const y_axis = Vec3.cross(x_axis, z_axis);
 
         result.data[0] = x_axis.x;
