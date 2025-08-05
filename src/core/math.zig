@@ -223,6 +223,16 @@ pub const Vec4 = struct {
         self.z /= vec_length;
         self.w /= vec_length;
     }
+
+    pub fn multMatrix(matrix: Mat4, v: Vec4) Vec4 {
+        const m = matrix.data;
+        return Vec4{
+            .x = m[0] * v.x + m[1] * v.y + m[2] * v.z + m[3] * v.w,
+            .y = m[4] * v.x + m[5] * v.y + m[6] * v.z + m[7] * v.w,
+            .z = m[8] * v.x + m[9] * v.y + m[10] * v.z + m[11] * v.w,
+            .w = m[12] * v.x + m[13] * v.y + m[14] * v.z + m[15] * v.w,
+        };
+    }
 };
 
 pub const Mat4 = struct {
@@ -581,7 +591,7 @@ pub const Quat = struct {
     }
 
     pub fn normalize(self: *@This()) void {
-        const normal_value = Quat.normal(self);
+        const normal_value = Quat.normal(self.*);
         self.x = self.x / normal_value;
         self.y = self.y / normal_value;
         self.z = self.z / normal_value;
@@ -625,11 +635,12 @@ pub const Quat = struct {
     }
 
     pub fn toMat4(q: Quat) Mat4 {
-        var result = Mat4.identity();
+        var result = Mat4.IDENTITY;
 
         // https://stackoverflow.com/questions/1556260/convert-quaternion-rotation-to-rotation-matrix
 
-        const n = q.normalize();
+        var n = q;
+        n.normalize();
 
         result.data[0] = 1.0 - 2.0 * n.y * n.y - 2.0 * n.z * n.z;
         result.data[1] = 2.0 * n.x * n.y - 2.0 * n.z * n.w;

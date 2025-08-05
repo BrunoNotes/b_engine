@@ -18,7 +18,6 @@ pub fn main() !void {
     defer eng.deinit();
 
     var angle: f32 = 0.0;
-    // var camera_view = core.math.Vec3.init(0, 0, -2);
 
     // TODO: temp
     var triangle: core.vulkan.vk_triangle.VkTriangle = undefined;
@@ -48,33 +47,11 @@ pub fn main() !void {
                 eng.vk_renderer.resize(eng.window.getVkSurfaceExtent());
             }
 
-            if (event.type == core.c.SDL_EVENT_MOUSE_MOTION) {
-                triangle.camera.yaw = event.motion.xrel / 200;
-                triangle.camera.pitch = event.motion.yrel / 200;
-            }
+            triangle.camera.processSDLEvents(event, delta_seconds);
         }
 
         const keyboard_state = core.c.SDL_GetKeyboardState(null);
-        // var camera_translation = core.math.Vec3.ZERO;
-        //
-        // if (keyboard_state[core.c.SDL_SCANCODE_W]) {
-        //     camera_translation = core.math.Vec3.FORWARD;
-        // }
-        // if (keyboard_state[core.c.SDL_SCANCODE_A]) {
-        //     camera_translation = core.math.Vec3.LEFT;
-        // }
-        // if (keyboard_state[core.c.SDL_SCANCODE_S]) {
-        //     camera_translation = core.math.Vec3.BACK;
-        // }
-        // if (keyboard_state[core.c.SDL_SCANCODE_D]) {
-        //     camera_translation = core.math.Vec3.RIGHT;
-        // }
-        // if (keyboard_state[core.c.SDL_SCANCODE_SPACE]) {
-        //     camera_translation = core.math.Vec3.UP;
-        // }
-        // if (keyboard_state[core.c.SDL_SCANCODE_LSHIFT]) {
-        //     camera_translation = core.math.Vec3.DOWN;
-        // }
+
         if (keyboard_state[core.c.SDL_SCANCODE_RIGHT]) {
             angle += 1 * delta_seconds;
         }
@@ -94,19 +71,12 @@ pub fn main() !void {
 
         triangle.camera.update();
         triangle.camera_uniforms.view = triangle.camera.getViewMatrix();
-        std.debug.print("{any}\n", .{triangle.camera_uniforms.view});
-
-        // camera_translation.y = camera_translation.y * -1;
-        // camera_translation.x = camera_translation.x * -1;
-        // camera_translation = core.math.Vec3.multScalar(camera_translation, delta_seconds);
-        // camera_view = core.math.Vec3.add(camera_view, camera_translation);
-        // triangle.camera_uniforms.view = core.math.Mat4.translation(camera_view);
-        // triangle.camera_uniforms.projection = core.math.Mat4.perspective(
-        //     std.math.degreesToRadians(70),
-        //     @as(f32, @floatFromInt(eng.vk_renderer.window_extent.width)) / @as(f32, @floatFromInt(eng.vk_renderer.window_extent.height)),
-        //     0.1,
-        //     1000.0,
-        // );
+        triangle.camera_uniforms.projection = core.math.Mat4.perspective(
+            std.math.degreesToRadians(70),
+            @as(f32, @floatFromInt(eng.vk_renderer.window_extent.width)) / @as(f32, @floatFromInt(eng.vk_renderer.window_extent.height)),
+            0.1,
+            1000.0,
+        );
 
         try eng.vk_renderer.beginDraw(allocator);
 

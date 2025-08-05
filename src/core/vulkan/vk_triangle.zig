@@ -27,46 +27,24 @@ pub const Camera = struct {
     position: math.Vec3 = math.Vec3.ZERO,
     pitch: f32 = 0, // vertical rotation
     yaw: f32 = 0, // horizontal rotation
+    uniform: CameraUniform = undefined,
 
     pub fn update(self: *@This()) void {
+        const velocity = math.Vec3.multScalar(self.velocity, 0.5);
+        const v = math.Vec4.init(velocity.x, velocity.y, velocity.z, 0);
         const r = self.getRotationMatrix();
-        const p = math.Vec4.init(
-            self.position.x,
-            self.position.y,
-            self.position.z,
-            0,
+
+        const result = math.Vec4.multMatrix(r, v);
+        self.position = math.Vec3.add(
+            self.position,
+            math.Vec3.init(result.x, result.y, result.z),
         );
-
-        const result = math.Vec4.init(
-            (r.data[0] * p.x) + (r.data[1] * p.y) + (r.data[2] * p.z) + (r.data[3] * p.w),
-            (r.data[4] * p.x) + (r.data[5] * p.y) + (r.data[6] * p.z) + (r.data[7] * p.w),
-            (r.data[8] * p.x) + (r.data[9] * p.y) + (r.data[10] * p.z) + (r.data[11] * p.w),
-            (r.data[12] * p.x) + (r.data[13] * p.y) + (r.data[14] * p.z) + (r.data[15] * p.w),
-        );
-        _ = result;
-
-        // self.position = math.Vec3.add(self.position, math.Vec3.init(result.x, result.y, result.z));
-
-        // std.debug.print("{any}\n", .{self.position});
     }
 
     pub fn getRotationMatrix(self: *@This()) math.Mat4 {
-        // TODO: use quaternions
-        // const pitch = math.Quat.toRotationMatrix(
-        //     math.Quat.fromAxisAngle(math.Vec3.RIGHT, self.pitch),
-        //     math.Vec3.ZERO,
-        // );
-        // const yaw = math.Quat.toRotationMatrix(
-        //     math.Quat.fromAxisAngle(math.Vec3.UP, self.yaw),
-        //     math.Vec3.ZERO,
-        // );
-        // return math.Mat4.mult(pitch, yaw);
-
-        // prevents gimble lock
-        const limit = std.math.degreesToRadians(89);
-        self.pitch = std.math.clamp(self.pitch, -limit, limit);
-
-        return math.Mat4.eulerXYZ(self.pitch, self.yaw, 0);
+        const pitch = math.Quat.fromAxisAngle(math.Vec3.RIGHT, self.pitch);
+        const yaw = math.Quat.fromAxisAngle(math.Vec3.DOWN, self.yaw);
+        return math.Mat4.mult(math.Quat.toMat4(pitch), math.Quat.toMat4(yaw));
     }
 
     pub fn getViewMatrix(self: *@This()) math.Mat4 {
@@ -77,6 +55,48 @@ pub const Camera = struct {
 
         return math.Mat4.inverse(math.Mat4.mult(translation, rotation));
         // return math.Mat4.inverse(translation);
+    }
+
+    pub fn processSDLEvents(
+        self: *@This(),
+        e: c.SDL_Event,
+        delta_seconds: f32,
+    ) void {
+        const mod: i32 = 2;
+        if (e.type == c.SDL_EVENT_KEY_DOWN) {
+            if (e.key.key == c.SDLK_W) {
+                self.velocity.z = -mod * delta_seconds;
+            }
+            if (e.key.key == c.SDLK_S) {
+                self.velocity.z = mod * delta_seconds;
+            }
+            if (e.key.key == c.SDLK_A) {
+                self.velocity.x = -mod * delta_seconds;
+            }
+            if (e.key.key == c.SDLK_D) {
+                self.velocity.x = mod * delta_seconds;
+            }
+        }
+
+        if (e.type == c.SDL_EVENT_KEY_UP) {
+            if (e.key.key == c.SDLK_W) {
+                self.velocity.z = 0;
+            }
+            if (e.key.key == c.SDLK_S) {
+                self.velocity.z = 0;
+            }
+            if (e.key.key == c.SDLK_A) {
+                self.velocity.x = 0;
+            }
+            if (e.key.key == c.SDLK_D) {
+                self.velocity.x = 0;
+            }
+        }
+
+        if (e.type == c.SDL_EVENT_MOUSE_MOTION) {
+            self.yaw += e.motion.xrel / 200;
+            self.pitch -= e.motion.yrel / 200;
+        }
     }
 };
 
