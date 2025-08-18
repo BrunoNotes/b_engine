@@ -10,7 +10,7 @@ pub const vk_pipeline = @import("vk_pipeline.zig");
 pub const vk_descriptor = @import("vk_descriptor.zig");
 pub const vk_buffer = @import("vk_buffer.zig");
 pub const vk_img = @import("vk_image.zig");
-pub const vk_triangle = @import("vk_triangle.zig");
+pub const model = @import("model/model.zig");
 
 const c = @import("../c.zig");
 const Window = @import("../window.zig").Window;

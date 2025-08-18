@@ -20,9 +20,9 @@ pub fn main() !void {
     var angle: f32 = 0.0;
 
     // TODO: temp
-    var triangle: core.vulkan.vk_triangle.VkTriangle = undefined;
-    try triangle.init(allocator, &eng.vk_renderer);
-    defer triangle.deinit(&eng.vk_renderer);
+    var model: core.vulkan.model.Model = undefined;
+    try model.init(allocator, &eng.vk_renderer);
+    defer model.deinit(&eng.vk_renderer);
 
     var timer = try std.time.Timer.start();
     var last_time = timer.read();
@@ -47,7 +47,7 @@ pub fn main() !void {
                 eng.vk_renderer.resize(eng.window.getVkSurfaceExtent());
             }
 
-            triangle.camera.processSDLEvents(event, delta_seconds);
+            model.camera.processSDLEvents(event, delta_seconds);
         }
 
         const keyboard_state = core.c.SDL_GetKeyboardState(null);
@@ -67,21 +67,24 @@ pub fn main() !void {
 
         // rotate the object with a push constant
         // triangle.push_constant.model_matrix = model_matrix;
-        triangle.camera_uniforms.model_matrix = model_matrix;
+        model.camera.uniform.model_matrix = model_matrix;
 
-        triangle.camera.update();
-        triangle.camera_uniforms.view = triangle.camera.getViewMatrix();
-        triangle.camera_uniforms.projection = core.math.Mat4.perspective(
-            std.math.degreesToRadians(70),
-            @as(f32, @floatFromInt(eng.vk_renderer.window_extent.width)) / @as(f32, @floatFromInt(eng.vk_renderer.window_extent.height)),
-            0.1,
-            1000.0,
+        model.camera.update(
+            eng.vk_renderer.window_extent.width,
+            eng.vk_renderer.window_extent.height,
         );
+        // model.camera.uniform.view = model.camera.getViewMatrix();
+        // model.camera.uniform.projection = core.math.Mat4.perspective(
+        //     std.math.degreesToRadians(70),
+        //     @as(f32, @floatFromInt(eng.vk_renderer.window_extent.width)) / @as(f32, @floatFromInt(eng.vk_renderer.window_extent.height)),
+        //     0.1,
+        //     1000.0,
+        // );
 
         try eng.vk_renderer.beginDraw(allocator);
 
         // --------- triangle ---------
-        try triangle.render(allocator, &eng.vk_renderer);
+        try model.render(allocator, &eng.vk_renderer);
         // --------- triangle ---------
 
         try eng.vk_renderer.endDraw(allocator);

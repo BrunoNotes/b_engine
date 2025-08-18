@@ -2,103 +2,19 @@ const std = @import("std");
 const builtin = @import("builtin");
 const assert = std.debug.assert;
 
-const c = @import("../c.zig");
-const util = @import("../util.zig");
-const vk_types = @import("vk_types.zig");
+const c = @import("../../c.zig");
+const util = @import("../../util.zig");
+const vk_types = @import("../vk_types.zig");
 const VK_CHECK = vk_types.VK_CHECK;
-const vk_renderer = @import("vk_renderer.zig");
-const vk_pipeline = @import("vk_pipeline.zig");
-const vk_descriptor = @import("vk_descriptor.zig");
-const vk_buffer = @import("vk_buffer.zig");
-const vk_img = @import("vk_image.zig");
-const vk_shader = @import("vk_shader.zig");
-const math = @import("../math.zig");
+const vk_renderer = @import("../vk_renderer.zig");
+const vk_pipeline = @import("../vk_pipeline.zig");
+const vk_descriptor = @import("../vk_descriptor.zig");
+const vk_buffer = @import("../vk_buffer.zig");
+const vk_img = @import("../vk_image.zig");
+const vk_shader = @import("../vk_shader.zig");
+const math = @import("../../math.zig");
 
-// TODO: temp
-pub const CameraUniform = struct {
-    projection: math.Mat4 = undefined, // 64 bytes
-    view: math.Mat4 = undefined,
-    model_matrix: math.Mat4 = undefined,
-    // reserved_1: math.Mat4 = undefined,
-};
-
-pub const Camera = struct {
-    velocity: math.Vec3 = math.Vec3.ZERO,
-    position: math.Vec3 = math.Vec3.ZERO,
-    pitch: f32 = 0, // vertical rotation
-    yaw: f32 = 0, // horizontal rotation
-    uniform: CameraUniform = undefined,
-
-    pub fn update(self: *@This()) void {
-        const velocity = math.Vec3.multScalar(self.velocity, 0.5);
-        const v = math.Vec4.init(velocity.x, velocity.y, velocity.z, 0);
-        const r = self.getRotationMatrix();
-
-        const result = math.Vec4.multMatrix(r, v);
-        self.position = math.Vec3.add(
-            self.position,
-            math.Vec3.init(result.x, result.y, result.z),
-        );
-    }
-
-    pub fn getRotationMatrix(self: *@This()) math.Mat4 {
-        const pitch = math.Quat.fromAxisAngle(math.Vec3.RIGHT, self.pitch);
-        const yaw = math.Quat.fromAxisAngle(math.Vec3.DOWN, self.yaw);
-        return math.Mat4.mult(math.Quat.toMat4(pitch), math.Quat.toMat4(yaw));
-    }
-
-    pub fn getViewMatrix(self: *@This()) math.Mat4 {
-        // _ = self;
-        const rotation = self.getRotationMatrix();
-        const translation = math.Mat4.translation(self.position);
-        // std.debug.print("{any}\n", .{rotation});
-
-        return math.Mat4.inverse(math.Mat4.mult(translation, rotation));
-        // return math.Mat4.inverse(translation);
-    }
-
-    pub fn processSDLEvents(
-        self: *@This(),
-        e: c.SDL_Event,
-        delta_seconds: f32,
-    ) void {
-        const mod: i32 = 2;
-        if (e.type == c.SDL_EVENT_KEY_DOWN) {
-            if (e.key.key == c.SDLK_W) {
-                self.velocity.z = -mod * delta_seconds;
-            }
-            if (e.key.key == c.SDLK_S) {
-                self.velocity.z = mod * delta_seconds;
-            }
-            if (e.key.key == c.SDLK_A) {
-                self.velocity.x = -mod * delta_seconds;
-            }
-            if (e.key.key == c.SDLK_D) {
-                self.velocity.x = mod * delta_seconds;
-            }
-        }
-
-        if (e.type == c.SDL_EVENT_KEY_UP) {
-            if (e.key.key == c.SDLK_W) {
-                self.velocity.z = 0;
-            }
-            if (e.key.key == c.SDLK_S) {
-                self.velocity.z = 0;
-            }
-            if (e.key.key == c.SDLK_A) {
-                self.velocity.x = 0;
-            }
-            if (e.key.key == c.SDLK_D) {
-                self.velocity.x = 0;
-            }
-        }
-
-        if (e.type == c.SDL_EVENT_MOUSE_MOTION) {
-            self.yaw += e.motion.xrel / 200;
-            self.pitch -= e.motion.yrel / 200;
-        }
-    }
-};
+const cam = @import("camera.zig");
 
 // TODO: temp
 pub const TextureUniform = struct {
@@ -110,11 +26,11 @@ pub const TextureUniform = struct {
 
 // TODO: temp
 pub const PushConstant = struct {
-    model_matrix: math.Mat4 = undefined,
+    reserved: math.Mat4 = undefined,
 };
 
 // TODO: temp
-pub const VkTriangle = struct {
+pub const Model = struct {
     pipeline: vk_pipeline.Pipeline = undefined,
     shader_stages: vk_shader.ShaderStages = undefined,
     vertex_descriptor: vk_descriptor.Descriptor = undefined,
@@ -126,20 +42,18 @@ pub const VkTriangle = struct {
     texture_images: []vk_img.TextureImage = undefined,
     texture_descriptor: vk_descriptor.Descriptor = undefined,
     texture_uniform: TextureUniform = undefined,
-    texture_uniform_buffer: vk_buffer.Buffer(TextureUniform) = undefined,
+    texture_uniform_buffer: vk_buffer.Buffer(TextureUniform),
 
     push_constant: PushConstant = undefined,
 
-    camera: Camera,
-    camera_uniforms: CameraUniform = undefined,
-    camera_uniform_buffer: vk_buffer.Buffer(CameraUniform) = undefined,
+    camera: cam.Camera,
 
     pub fn init(
         self: *@This(),
         allocator: std.mem.Allocator,
         context: *vk_renderer.VkRenderer,
     ) !void {
-        std.log.info("VkTriangle init", .{});
+        std.log.info("Model init", .{});
 
         const shader_folder = "assets/shaders/bin";
 
@@ -199,7 +113,7 @@ pub const VkTriangle = struct {
         const textures = [_]vk_img.TextureImage{texture};
         self.texture_images = try allocator.dupe(vk_img.TextureImage, textures[0..]);
 
-        var fragment_descriptor_pool_size = [_]c.VkDescriptorPoolSize{
+        var texture_descriptor_pool_size = [_]c.VkDescriptorPoolSize{
             c.VkDescriptorPoolSize{
                 .type = c.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                 // .descriptorCount = @intCast(self.images.items.len),
@@ -212,11 +126,11 @@ pub const VkTriangle = struct {
             },
         };
 
-        var fragment_descriptor_layout_binding = std.ArrayList(c.VkDescriptorSetLayoutBinding).init(allocator);
-        defer fragment_descriptor_layout_binding.deinit();
+        var texture_descriptor_layout_binding = std.ArrayList(c.VkDescriptorSetLayoutBinding).init(allocator);
+        defer texture_descriptor_layout_binding.deinit();
 
-        try fragment_descriptor_layout_binding.append(c.VkDescriptorSetLayoutBinding{
-            .binding = @intCast(fragment_descriptor_layout_binding.items.len),
+        try texture_descriptor_layout_binding.append(c.VkDescriptorSetLayoutBinding{
+            .binding = @intCast(texture_descriptor_layout_binding.items.len),
             .descriptorType = c.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1,
             .stageFlags = c.VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -224,13 +138,13 @@ pub const VkTriangle = struct {
 
         for (0..self.texture_images.len) |i| {
             const layout_binding = c.VkDescriptorSetLayoutBinding{
-                .binding = @intCast(fragment_descriptor_layout_binding.items.len),
+                .binding = @intCast(texture_descriptor_layout_binding.items.len),
                 .descriptorType = c.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .descriptorCount = 1,
                 .stageFlags = c.VK_SHADER_STAGE_FRAGMENT_BIT,
             };
 
-            try fragment_descriptor_layout_binding.append(layout_binding);
+            try texture_descriptor_layout_binding.append(layout_binding);
 
             self.texture_images[i].descriptor_binding = layout_binding.binding;
         }
@@ -238,8 +152,8 @@ pub const VkTriangle = struct {
         try self.texture_descriptor.init(
             context.device.handle,
             @intCast(self.texture_images.len),
-            &fragment_descriptor_pool_size,
-            fragment_descriptor_layout_binding.items,
+            &texture_descriptor_pool_size,
+            texture_descriptor_layout_binding.items,
         );
 
         var descritor_set_layout = [_]c.VkDescriptorSetLayout{
@@ -247,13 +161,13 @@ pub const VkTriangle = struct {
             self.texture_descriptor.set_layout,
         };
 
-        // var push_constant_range = [_]c.VkPushConstantRange{
-        //     c.VkPushConstantRange{
-        //         .stageFlags = c.VK_SHADER_STAGE_VERTEX_BIT,
-        //         .offset = @sizeOf(math.Mat4) * 0,
-        //         .size = @sizeOf(math.Mat4) * 2,
-        //     },
-        // };
+        var push_constant_range = [_]c.VkPushConstantRange{
+            c.VkPushConstantRange{
+                .stageFlags = c.VK_SHADER_STAGE_VERTEX_BIT,
+                .offset = @sizeOf(math.Mat4) * 0,
+                .size = @sizeOf(math.Mat4) * 2,
+            },
+        };
 
         var attribute_descriptions = [_]c.VkVertexInputAttributeDescription{
             c.VkVertexInputAttributeDescription{
@@ -266,7 +180,19 @@ pub const VkTriangle = struct {
                 .location = 1,
                 .binding = 0,
                 .format = c.VK_FORMAT_R32G32_SFLOAT,
-                .offset = @offsetOf(vk_types.Vertex, "texture_coord"),
+                .offset = @offsetOf(vk_types.Vertex, "uv"),
+            },
+            c.VkVertexInputAttributeDescription{
+                .location = 2,
+                .binding = 0,
+                .format = c.VK_FORMAT_R32G32_SFLOAT,
+                .offset = @offsetOf(vk_types.Vertex, "color"),
+            },
+            c.VkVertexInputAttributeDescription{
+                .location = 3,
+                .binding = 0,
+                .format = c.VK_FORMAT_R32G32_SFLOAT,
+                .offset = @offsetOf(vk_types.Vertex, "normal"),
             },
         };
 
@@ -275,21 +201,20 @@ pub const VkTriangle = struct {
             context.swapchain.image_format,
             false, // TODO: make this configurable
             self.shader_stages,
-            // &push_constant_range,
-            null,
+            &push_constant_range,
             &descritor_set_layout,
             &attribute_descriptions,
         );
 
         var vertices: [4]vk_types.Vertex = undefined;
         vertices[0].position = .{ .x = -0.5, .y = -0.5, .z = 0.0 };
-        vertices[0].texture_coord = .{ .x = 0.0, .y = 0.0 };
+        vertices[0].uv = .{ .x = 0.0, .y = 0.0 };
         vertices[1].position = .{ .x = 0.5, .y = 0.5, .z = 0.0 };
-        vertices[1].texture_coord = .{ .x = 1.0, .y = 1.0 };
+        vertices[1].uv = .{ .x = 1.0, .y = 1.0 };
         vertices[2].position = .{ .x = -0.5, .y = 0.5, .z = 0.0 };
-        vertices[2].texture_coord = .{ .x = 0.0, .y = 1.0 };
+        vertices[2].uv = .{ .x = 0.0, .y = 1.0 };
         vertices[3].position = .{ .x = 0.5, .y = -0.5, .z = 0.0 };
-        vertices[3].texture_coord = .{ .x = 1.0, .y = 0.0 };
+        vertices[3].uv = .{ .x = 1.0, .y = 0.0 };
         // self.vertices = &vertices;
         // for slices the caller must own the memory
         self.vertices = try allocator.dupe(vk_types.Vertex, vertices[0..]);
@@ -333,27 +258,8 @@ pub const VkTriangle = struct {
         // };
 
         self.camera.position = math.Vec3.init(0, 0, 2);
-
-        self.camera_uniforms = CameraUniform{
-            .projection = math.Mat4.perspective(
-                std.math.degreesToRadians(70),
-                @as(f32, @floatFromInt(context.window_extent.width)) / @as(f32, @floatFromInt(context.window_extent.height)),
-                0.1,
-                1000.0,
-            ),
-            // .view = math.Mat4.translation(math.Vec3.init(0.0, 0.0, -2.0)),
-            .view = self.camera.getViewMatrix(),
-            .model_matrix = math.Mat4.translation(math.Vec3.ZERO),
-        };
-
-        try self.camera_uniform_buffer.init(
-            context.vk_allocator,
-            context.device.handle,
-            @sizeOf(CameraUniform),
-            c.VK_BUFFER_USAGE_TRANSFER_DST_BIT | c.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            c.VMA_MEMORY_USAGE_AUTO,
-            null,
-        );
+        self.camera.FOV = 70;
+        try self.camera.init(context);
     }
 
     pub fn deinit(
@@ -366,7 +272,7 @@ pub const VkTriangle = struct {
                 context.device.handle,
             );
         }
-        self.camera_uniform_buffer.deinit(context.vk_allocator);
+        self.camera.deinit(context);
         self.texture_uniform_buffer.deinit(context.vk_allocator);
         self.index_buffer.deinit(context.vk_allocator);
         self.vertex_buffer.deinit(context.vk_allocator);
@@ -376,7 +282,7 @@ pub const VkTriangle = struct {
         self.texture_descriptor.deinit(context.device.handle);
         self.vertex_descriptor.deinit(context.device.handle);
 
-        std.log.info("VkTriangle deinit", .{});
+        std.log.info("Model deinit", .{});
     }
 
     pub fn render(
@@ -419,23 +325,16 @@ pub const VkTriangle = struct {
             cmd_pool,
         );
 
-        try self.camera_uniform_buffer.loadBufferData(
-            context.vk_allocator,
-            context.device.handle,
-            self.camera_uniforms,
-            @sizeOf(CameraUniform),
-            queue,
-            cmd_pool,
-        );
+        try self.camera.render(context);
 
         // TODO: check if it needs to update
         var descritor_write = std.ArrayList(c.VkWriteDescriptorSet).init(allocator);
         defer descritor_write.deinit();
 
         var vertex_buffer_info = c.VkDescriptorBufferInfo{
-            .buffer = self.camera_uniform_buffer.handle,
+            .buffer = self.camera.buffer.handle,
             .offset = 0,
-            .range = @sizeOf(@TypeOf(self.camera_uniforms)),
+            .range = @sizeOf(@TypeOf(self.camera.uniform)),
         };
         try descritor_write.append(c.VkWriteDescriptorSet{
             .sType = c.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,

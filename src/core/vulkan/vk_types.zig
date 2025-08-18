@@ -31,8 +31,9 @@ pub const RGBAColor = struct {
 
 pub const Vertex = struct {
     position: math.Vec3 = undefined,
-    texture_coord: math.Vec2 = undefined,
-    // color: RGBAColor = undefined,
+    uv: math.Vec2 = undefined, // texture coordinates
+    color: RGBAColor = undefined,
+    normal: math.Vec3 = undefined,
 };
 
 pub fn VK_CHECK(x: c.VkResult) !void {
