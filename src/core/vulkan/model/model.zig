@@ -19,7 +19,7 @@ const tex = @import("texture.zig");
 
 // TODO: temp
 pub const PushConstant = struct {
-    reserved: math.Mat4 = undefined,
+    model_matrix: math.Mat4 = undefined,
 };
 
 // TODO: temp
@@ -316,14 +316,14 @@ pub const Model = struct {
 
         c.vkCmdBindIndexBuffer(cmd, self.index_buffer.handle, offset, c.VK_INDEX_TYPE_UINT32);
 
-        // c.vkCmdPushConstants(
-        //     cmd,
-        //     self.pipeline.layout,
-        //     c.VK_SHADER_STAGE_VERTEX_BIT,
-        //     0,
-        //     @sizeOf(PushConstant),
-        //     &self.push_constant,
-        // );
+        c.vkCmdPushConstants(
+            cmd,
+            self.pipeline.layout,
+            c.VK_SHADER_STAGE_VERTEX_BIT,
+            0,
+            @sizeOf(PushConstant),
+            &self.push_constant,
+        );
 
         c.vkCmdDrawIndexed(cmd, @intCast(self.indices.len), 1, 0, 0, 0);
     }

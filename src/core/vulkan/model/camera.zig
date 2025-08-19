@@ -8,7 +8,7 @@ const vk_renderer = @import("../vk_renderer.zig");
 pub const CameraUniform = struct {
     projection: math.Mat4 = undefined, // 64 bytes
     view: math.Mat4 = undefined,
-    model_matrix: math.Mat4 = undefined,
+    // reserved_0: math.Mat4 = undefined,
     // reserved_1: math.Mat4 = undefined,
 };
 
@@ -34,7 +34,6 @@ pub const Camera = struct {
             ),
             // .view = math.Mat4.translation(math.Vec3.init(0.0, 0.0, -2.0)),
             .view = self.getViewMatrix(),
-            .model_matrix = math.Mat4.translation(math.Vec3.ZERO),
         };
 
         try self.buffer.init(
