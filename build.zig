@@ -20,7 +20,7 @@ pub fn compileShaders(
         comp,
     };
 
-    const s_folder = "assets/shaders";
+    const s_folder = "shaders";
     const in_ext = "glsl";
     const out_ext = "spv";
     const out_folder = "bin";

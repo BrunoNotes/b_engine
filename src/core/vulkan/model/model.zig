@@ -45,7 +45,7 @@ pub const Model = struct {
     ) !void {
         std.log.info("Model init", .{});
 
-        const shader_folder = "assets/shaders/bin";
+        const shader_folder = "shaders/bin";
 
         var shader_stage_type = [_]vk_shader.ShaderStageType{
             .{
