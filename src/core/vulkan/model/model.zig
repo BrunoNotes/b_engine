@@ -15,14 +15,7 @@ const vk_shader = @import("../vk_shader.zig");
 const math = @import("../../math.zig");
 
 const cam = @import("camera.zig");
-
-// TODO: temp
-pub const TextureUniform = struct {
-    diffuse_color: math.Vec4 = undefined,
-    // reserved_0: math.Vec4 = undefined,
-    // reserved_1: math.Vec4 = undefined,
-    // reserved_2: math.Vec4 = undefined,
-};
+const tex = @import("texture.zig");
 
 // TODO: temp
 pub const PushConstant = struct {
@@ -39,10 +32,7 @@ pub const Model = struct {
     indices: []u32 = undefined,
     index_buffer: vk_buffer.Buffer(u32) = undefined,
 
-    texture_images: []vk_img.TextureImage = undefined,
-    texture_descriptor: vk_descriptor.Descriptor = undefined,
-    texture_uniform: TextureUniform = undefined,
-    texture_uniform_buffer: vk_buffer.Buffer(TextureUniform),
+    texture: tex.Texture = undefined,
 
     push_constant: PushConstant = undefined,
 
@@ -99,66 +89,11 @@ pub const Model = struct {
             &vertex_descriptor_layout_binding,
         );
 
-        // TODO: create a structure to load texture
-        var texture = vk_img.TextureImage{};
-        // defer texture.deinit(context.vk_allocator, context.device.handle);
-        try texture.init(
-            "assets/textures" ++ "/texture_01.png",
-            context.vk_allocator,
-            context.device.handle,
-            context.device.graphics_queue.queue,
-            context.swapchain.getCurrentFrame().cmd_pool,
-        );
-
-        const textures = [_]vk_img.TextureImage{texture};
-        self.texture_images = try allocator.dupe(vk_img.TextureImage, textures[0..]);
-
-        var texture_descriptor_pool_size = [_]c.VkDescriptorPoolSize{
-            c.VkDescriptorPoolSize{
-                .type = c.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                // .descriptorCount = @intCast(self.images.items.len),
-                .descriptorCount = @intCast(self.texture_images.len),
-            },
-            c.VkDescriptorPoolSize{
-                .type = c.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                // .descriptorCount = @intCast(self.images.items.len),
-                .descriptorCount = @intCast(self.texture_images.len),
-            },
-        };
-
-        var texture_descriptor_layout_binding = std.ArrayList(c.VkDescriptorSetLayoutBinding).init(allocator);
-        defer texture_descriptor_layout_binding.deinit();
-
-        try texture_descriptor_layout_binding.append(c.VkDescriptorSetLayoutBinding{
-            .binding = @intCast(texture_descriptor_layout_binding.items.len),
-            .descriptorType = c.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = c.VK_SHADER_STAGE_FRAGMENT_BIT,
-        });
-
-        for (0..self.texture_images.len) |i| {
-            const layout_binding = c.VkDescriptorSetLayoutBinding{
-                .binding = @intCast(texture_descriptor_layout_binding.items.len),
-                .descriptorType = c.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .descriptorCount = 1,
-                .stageFlags = c.VK_SHADER_STAGE_FRAGMENT_BIT,
-            };
-
-            try texture_descriptor_layout_binding.append(layout_binding);
-
-            self.texture_images[i].descriptor_binding = layout_binding.binding;
-        }
-
-        try self.texture_descriptor.init(
-            context.device.handle,
-            @intCast(self.texture_images.len),
-            &texture_descriptor_pool_size,
-            texture_descriptor_layout_binding.items,
-        );
+        try self.texture.init(allocator, context);
 
         var descritor_set_layout = [_]c.VkDescriptorSetLayout{
             self.vertex_descriptor.set_layout,
-            self.texture_descriptor.set_layout,
+            self.texture.descriptor.set_layout,
         };
 
         var push_constant_range = [_]c.VkPushConstantRange{
@@ -240,23 +175,6 @@ pub const Model = struct {
             null,
         );
 
-        self.texture_uniform = TextureUniform{
-            .diffuse_color = math.Vec4.init(1.0, 1.0, 1.0, 1.0),
-        };
-
-        try self.texture_uniform_buffer.init(
-            context.vk_allocator,
-            context.device.handle,
-            @sizeOf(TextureUniform),
-            c.VK_BUFFER_USAGE_TRANSFER_DST_BIT | c.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            c.VMA_MEMORY_USAGE_AUTO,
-            null,
-        );
-
-        // self.push_constant = PushConstant{
-        //     .model_matrix = math.Mat4.translation(math.Vec3.ZERO),
-        // };
-
         self.camera.position = math.Vec3.init(0, 0, 2);
         self.camera.FOV = 70;
         try self.camera.init(context);
@@ -266,20 +184,13 @@ pub const Model = struct {
         self: *@This(),
         context: *vk_renderer.VkRenderer,
     ) void {
-        for (0..self.texture_images.len) |i| {
-            self.texture_images[i].deinit(
-                context.vk_allocator,
-                context.device.handle,
-            );
-        }
         self.camera.deinit(context);
-        self.texture_uniform_buffer.deinit(context.vk_allocator);
+        self.texture.deinit(context);
         self.index_buffer.deinit(context.vk_allocator);
         self.vertex_buffer.deinit(context.vk_allocator);
 
         self.pipeline.deinit(context.device.handle);
         self.shader_stages.deinit(context.device.handle);
-        self.texture_descriptor.deinit(context.device.handle);
         self.vertex_descriptor.deinit(context.device.handle);
 
         std.log.info("Model deinit", .{});
@@ -316,14 +227,7 @@ pub const Model = struct {
             cmd_pool,
         );
 
-        try self.texture_uniform_buffer.loadBufferData(
-            context.vk_allocator,
-            context.device.handle,
-            self.texture_uniform,
-            @sizeOf(TextureUniform),
-            queue,
-            cmd_pool,
-        );
+        try self.texture.render(context);
 
         try self.camera.render(context);
 
@@ -331,6 +235,7 @@ pub const Model = struct {
         var descritor_write = std.ArrayList(c.VkWriteDescriptorSet).init(allocator);
         defer descritor_write.deinit();
 
+        // ----- Vertex -----
         var vertex_buffer_info = c.VkDescriptorBufferInfo{
             .buffer = self.camera.buffer.handle,
             .offset = 0,
@@ -345,42 +250,46 @@ pub const Model = struct {
             .descriptorCount = 1,
             .pBufferInfo = &vertex_buffer_info,
         });
+        // ----- Vertex -----
 
-        var fragment_buffer_info = c.VkDescriptorBufferInfo{
-            .buffer = self.texture_uniform_buffer.handle,
+        // ----- Texture -----
+        // TODO: move this to the Texture struct
+        var texture_buffer_info = c.VkDescriptorBufferInfo{
+            .buffer = self.texture.buffer.handle,
             .offset = 0,
-            .range = @sizeOf(@TypeOf(self.texture_uniform)),
+            .range = @sizeOf(@TypeOf(self.texture.uniform)),
         };
         try descritor_write.append(c.VkWriteDescriptorSet{
             .sType = c.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = self.texture_descriptor.set,
+            .dstSet = self.texture.descriptor.set,
             .dstBinding = 0,
             .dstArrayElement = 0,
             .descriptorType = c.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = 1,
-            .pBufferInfo = &fragment_buffer_info,
+            .pBufferInfo = &texture_buffer_info,
         });
 
-        for (self.texture_images) |tex| {
+        for (self.texture.images) |img| {
             const image_info = c.VkDescriptorImageInfo{
                 .imageLayout = c.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                .imageView = tex.image.view,
-                .sampler = tex.sampler,
+                .imageView = img.image.view,
+                .sampler = img.sampler,
             };
 
             try descritor_write.append(c.VkWriteDescriptorSet{
                 .sType = c.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = self.texture_descriptor.set,
-                .dstBinding = tex.descriptor_binding,
+                .dstSet = self.texture.descriptor.set,
+                .dstBinding = img.descriptor_binding,
                 .descriptorType = c.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .descriptorCount = 1,
                 .pImageInfo = &image_info,
             });
         }
+        // ----- Texture -----
 
         var descriptors_sets = [_]c.VkDescriptorSet{
             self.vertex_descriptor.set,
-            self.texture_descriptor.set,
+            self.texture.descriptor.set,
         };
 
         c.vkUpdateDescriptorSets(
